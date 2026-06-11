@@ -1,5 +1,5 @@
 import streamlit as st
-import anthropic
+from groq import Groq
 
 # ── Configuración de página ──────────────────────────────────────────────────
 st.set_page_config(
@@ -12,17 +12,15 @@ st.set_page_config(
 st.markdown("""
 <style>
     .stApp { background-color: #0d1117; color: #e6edf3; }
-    .stTextInput input { background-color: #161b22; color: #e6edf3; border: 1px solid #30363d; }
-    .stButton button { background-color: #2f81f7; color: white; border: none; border-radius: 6px; }
     .doc-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
     .doc-tag { background: #1a3a5c; border: 1px solid #2f81f7; color: #388bfd;
-               font-size: 11px; padding: 2px 10px; border-radius: 20px; }
+               font-size: 11px; padding: 2px 10px; border-radius: 20px; display: inline-block; margin: 2px; }
     .source { background: #1a3020; border: 1px solid #2ea043; color: #3fb950;
               font-size: 11px; padding: 1px 8px; border-radius: 20px; display: inline-block; margin-top: 6px; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── System prompt con todas las specs ────────────────────────────────────────
+# ── System prompt ─────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """Eres un asistente técnico interno de Acumed Digital Surgery (ADS), especializado en las especificaciones de diseño de dispositivos quirúrgicos CMF (craneomaxilofacial). Tu función es responder preguntas concretas sobre dimensiones, tolerancias, materiales, part numbers y requerimientos de diseño.
 
 DOCUMENTOS DE REFERENCIA CARGADOS:
@@ -97,24 +95,24 @@ DOCUMENTOS DE REFERENCIA CARGADOS:
   • Flange: Height 1.5–5.5 mm (pref. 3.5 mm) | Width 2.5 mm
 - DENTAL SUPPORT: Le Fort & Genio 4–6 dientes | BSSO 2–6 dientes | Width MIN 4 mm | Rod MIN 3 mm | Impression depth MIN 1 mm | Clearance brackets MIN 0.5 mm
 - FENESTRATIONS: Hole 1.5–2.0 mm | Separation 2.5–4.0 mm | Edge distance MIN 2.6 mm
-- DRILL CYLINDERS (familias 216-16XX, 208-16XX, 202-20XX, etc.):
+- DRILL CYLINDERS:
   • ø1.6: Drill ø1.3 | Cyl ID ø1.5±0.1 | OD ø5.6 | Height MIN 2 mm
   • ø2.0: Drill ø1.6 | Cyl ID ø1.8±0.1 | OD ø5.6 | Height MIN 2 mm
-  • ø2.4 (familias 234-20XX, 206-24XX, etc.): Drill ø2.0 | Cyl ID ø2.2±0.1 | OD ø5.6 | Height MIN 2 mm
+  • ø2.4: Drill ø2.0 | Cyl ID ø2.2±0.1 | OD ø5.6 | Height MIN 2 mm
 - TEMP FIX CYLINDERS:
   • ø1.6: Fix Cyl ID ø2.0±0.1 | OD ø5.6 | Height MIN 2 mm
-  • ø2.0 (familias estándar): Fix Cyl ID ø2.4±0.1 | OD ø5.6 | Height MIN 2 mm
-  • ø2.0/ø2.4 (familias recon): Fix Cyl ID ø2.84±0.1 | OD ø5.6 | Height MIN 2 mm
+  • ø2.0 estándar: Fix Cyl ID ø2.4±0.1 | OD ø5.6 | Height MIN 2 mm
+  • ø2.0/ø2.4 recon: Fix Cyl ID ø2.84±0.1 | OD ø5.6 | Height MIN 2 mm
 - TROCAR HOLES: OD 6.0 mm | ID 5.0 mm | Thru fixation 2.84±0.1 mm | Thru drill 2.3 mm | Counterbore MIN 4.4 mm
 - CONNECTION FEATURES:
   • Hole & Peg: Radius 1.15 mm | Wall MIN 1.1 mm | Flat width 2.7 mm | Engagement MIN 2.2 mm | Overall ~8.6 mm
   • Butterfly: Length base ~8.7 mm | Height ~6.7 mm | Pin diameter 2.0 mm | Wall resin 1.9 mm
   • Hook: Offset 0.27 mm | Height MIN 1.2 mm | Width MIN 1.4 mm / 4.0 mm
-- LE FORT GUIDE: Length 40–95 mm | Width 20–60 mm | Bridge (bilateral) 4.0–6.0 mm | Depth 15–45 mm | Thickness MIN 0.8 mm
+- LE FORT GUIDE: Length 40–95 mm | Width 20–60 mm | Bridge bilateral 4.0–6.0 mm | Depth 15–45 mm | Thickness MIN 0.8 mm
 - BSSO GUIDE: Length 20–70 mm | Width 13–50 mm | Depth 10–30 mm | Thickness MIN 0.8 mm
 - GENIOPLASTY GUIDE: Length 30–100 mm | Width 13–90 mm | Depth 10–30 mm | Thickness MIN 0.8 mm
 - CONDYLE ALIGNMENT: Length 15–65 mm | Width 10–30 mm | Bridge thickness MIN 2.3 mm | Bridge width MIN 2.0 mm | Min temp fix 3 por lado
-- RECON GUIDE (Mand/Max): Length 15–70 mm | Width 13–50 mm | Depth 10–25 mm | Thickness MIN 0.8 mm
+- RECON GUIDE: Length 15–70 mm | Width 13–50 mm | Depth 10–25 mm | Thickness MIN 0.8 mm
 - FIBULA GUIDE: Length 20–300 mm | Width 10–30 mm | Depth 6–12 mm | Thickness MIN 1.3 mm | Surface offset 0.5 mm | Cut Slot Width 0.3–1.0 mm | Segments 1–7 | Markings PROX & DIST
 - DENTAL ANCHOR GUIDE: Length 30–90 mm | Width 20–60 mm | Depth 5–30 mm | Thickness 2.0 mm | Bridge MIN 3.0 mm
 - TI PALATAL SPLINT: Length 20–70 mm | Width 15–50 mm | Thickness holes MIN 0.8 mm | Thickness palatal MIN 1.2 mm | Wire hole 0.3–1.8 mm
@@ -128,7 +126,7 @@ INSTRUCCIONES:
 - Si no encuentras la información, dilo claramente
 - No inventes especificaciones"""
 
-# ── Header ───────────────────────────────────────────────────────────────────
+# ── Header ────────────────────────────────────────────────────────────────────
 st.markdown("## 🔩 ADS Design Spec Assistant")
 st.markdown("**Acumed Digital Surgery · TDS Internal Tool**")
 st.markdown("""
@@ -141,24 +139,23 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.divider()
 
-# ── API Key input ─────────────────────────────────────────────────────────────
+# ── API Key ───────────────────────────────────────────────────────────────────
 api_key = st.text_input(
-    "🔑 API Key de Anthropic",
+    "🔑 Groq API Key (gratuita)",
     type="password",
-    placeholder="sk-ant-api03-...",
-    help="Ingresa tu API key de console.anthropic.com"
+    placeholder="gsk_...",
+    help="Obtén tu key gratis en console.groq.com"
 )
 
-# ── Historial de chat ─────────────────────────────────────────────────────────
+# ── Historial ─────────────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Mostrar mensajes anteriores
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# ── Sugerencias ──────────────────────────────────────────────────────────────
+# ── Sugerencias ───────────────────────────────────────────────────────────────
 if not st.session_state.messages:
     st.markdown("**💡 Preguntas de ejemplo:**")
     col1, col2 = st.columns(2)
@@ -173,38 +170,35 @@ if not st.session_state.messages:
         if st.button("¿Markings requeridos en Ti implant?"):
             st.session_state.suggested = "¿Qué markings son requeridos en un Ti implant?"
 
-# ── Input de chat ─────────────────────────────────────────────────────────────
+# ── Chat input ────────────────────────────────────────────────────────────────
 prompt = st.chat_input("Escribe tu pregunta sobre las specs de diseño...")
 
-# Manejar sugerencias
 if "suggested" in st.session_state:
     prompt = st.session_state.suggested
     del st.session_state.suggested
 
 if prompt:
     if not api_key:
-        st.error("⚠️ Ingresa tu API key de Anthropic para continuar.")
+        st.error("⚠️ Ingresa tu Groq API Key para continuar. Es gratis en console.groq.com")
     else:
-        # Mostrar mensaje del usuario
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Obtener respuesta de Claude
         with st.chat_message("assistant"):
             with st.spinner("Consultando specs..."):
                 try:
-                    client = anthropic.Anthropic(api_key=api_key)
-                    response = client.messages.create(
-                        model="claude-sonnet-4-20250514",
+                    client = Groq(api_key=api_key)
+                    response = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
                         max_tokens=1000,
-                        system=SYSTEM_PROMPT,
                         messages=[
-                            {"role": m["role"], "content": m["content"]}
-                            for m in st.session_state.messages
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            *[{"role": m["role"], "content": m["content"]}
+                              for m in st.session_state.messages]
                         ]
                     )
-                    reply = response.content[0].text
+                    reply = response.choices[0].message.content
                     st.markdown(reply)
                     st.markdown('<span class="source">✓ Fuente: PS-015200/01/03/04</span>', unsafe_allow_html=True)
                     st.session_state.messages.append({"role": "assistant", "content": reply})
