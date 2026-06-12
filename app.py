@@ -1,26 +1,79 @@
 import streamlit as st
 from groq import Groq
 
-# ── Configuración de página ──────────────────────────────────────────────────
 st.set_page_config(
-    page_title="ADS Design Spec Assistant",
+    page_title="ADS Spec Assistant",
     page_icon="🔩",
     layout="centered"
 )
 
-# ── Estilos ──────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .stApp { background-color: #0d1117; color: #e6edf3; }
-    .doc-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-    .doc-tag { background: #1a3a5c; border: 1px solid #2f81f7; color: #388bfd;
-               font-size: 11px; padding: 2px 10px; border-radius: 20px; display: inline-block; margin: 2px; }
-    .source { background: #1a3020; border: 1px solid #2ea043; color: #3fb950;
-              font-size: 11px; padding: 1px 8px; border-radius: 20px; display: inline-block; margin-top: 6px; }
+    /* Fondo y texto general */
+    .stApp { background-color: #f5f7fa; color: #1a1a2e; }
+    
+    /* Sidebar y header */
+    .stChatMessage { background-color: #ffffff; border-radius: 12px; 
+                     border: 1px solid #e2e8f0; margin-bottom: 8px; }
+    
+    /* Input de texto */
+    .stTextInput input { background-color: #ffffff; color: #1a1a2e; 
+                         border: 1px solid #cbd5e0; border-radius: 8px; }
+    
+    /* Botones */
+    .stButton button { background-color: #1a56db; color: white; 
+                       border: none; border-radius: 8px; font-weight: 500; }
+    .stButton button:hover { background-color: #1e429f; }
+    
+    /* Chat input */
+    .stChatInputContainer { background-color: #ffffff; border-radius: 12px;
+                            border: 1px solid #cbd5e0; }
+    
+    /* Tags de documentos */
+    .doc-tag { 
+        background: #ebf5fb; 
+        border: 1px solid #1a56db; 
+        color: #1a56db;
+        font-size: 11px; 
+        padding: 3px 10px; 
+        border-radius: 20px; 
+        display: inline-block; 
+        margin: 3px;
+        font-weight: 500;
+    }
+    
+    /* Badge de fuente */
+    .source { 
+        background: #f0fdf4; 
+        border: 1px solid #16a34a; 
+        color: #16a34a;
+        font-size: 11px; 
+        padding: 2px 10px; 
+        border-radius: 20px; 
+        display: inline-block; 
+        margin-top: 6px;
+        font-weight: 500;
+    }
+    
+    /* Header */
+    .header-box {
+        background: linear-gradient(135deg, #1a56db 0%, #0ea5e9 100%);
+        padding: 20px 24px;
+        border-radius: 14px;
+        margin-bottom: 20px;
+        color: white;
+    }
+    .header-box h2 { color: white; margin: 0; font-size: 22px; }
+    .header-box p { color: rgba(255,255,255,0.85); margin: 4px 0 0 0; font-size: 13px; }
+    
+    /* Divider */
+    hr { border-color: #e2e8f0; }
+    
+    /* Spinner */
+    .stSpinner { color: #1a56db; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── System prompt ─────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """Eres un asistente técnico interno de Acumed Digital Surgery (ADS), especializado en las especificaciones de diseño de dispositivos quirúrgicos CMF (craneomaxilofacial). Tu función es responder preguntas concretas sobre dimensiones, tolerancias, materiales, part numbers y requerimientos de diseño.
 
 DOCUMENTOS DE REFERENCIA CARGADOS:
@@ -88,12 +141,12 @@ DOCUMENTOS DE REFERENCIA CARGADOS:
 === PS-015204 · ADS CMF TITANIUM GUIDE DESIGN SPECIFICATIONS (v1.5) ===
 - Material: CP Ti Grade 4 | Color: Anodize blue violet | Tolerancia: ±0.2 mm | Surface offset: 0.1 mm
 - CUT FEATURES:
-  • Thin Slot: Height MIN 0.8 mm | Wall MIN 2.5 mm | Width 0.8–1.2 mm | Length 3.5–8.0 mm | Int fillet 0.3–0.5 mm | Ext fillet 0.5–1.0 mm
+  • Thin Slot: Height MIN 0.8 mm | Wall MIN 2.5 mm | Width 0.8–1.2 mm | Length 3.5–8.0 mm
   • Standard Slot: Height 1 mm | Wall MIN 2.5 mm | Connection MIN 6 mm | Width 0.8–1.2 mm
   • Thin Resection: Height MIN 0.8 mm | Wall MIN 2.5 mm | Width 0.8–8.2 mm | Length 3.5–8.0 mm
   • Standard Resection: Height 1 mm | Wall MIN 2.5 mm | Connection MIN 6 mm | Width 0.8–12.2 mm
   • Flange: Height 1.5–5.5 mm (pref. 3.5 mm) | Width 2.5 mm
-- DENTAL SUPPORT: Le Fort & Genio 4–6 dientes | BSSO 2–6 dientes | Width MIN 4 mm | Rod MIN 3 mm | Impression depth MIN 1 mm | Clearance brackets MIN 0.5 mm
+- DENTAL SUPPORT: Le Fort & Genio 4–6 dientes | BSSO 2–6 dientes | Width MIN 4 mm | Rod MIN 3 mm
 - FENESTRATIONS: Hole 1.5–2.0 mm | Separation 2.5–4.0 mm | Edge distance MIN 2.6 mm
 - DRILL CYLINDERS:
   • ø1.6: Drill ø1.3 | Cyl ID ø1.5±0.1 | OD ø5.6 | Height MIN 2 mm
@@ -104,16 +157,12 @@ DOCUMENTOS DE REFERENCIA CARGADOS:
   • ø2.0 estándar: Fix Cyl ID ø2.4±0.1 | OD ø5.6 | Height MIN 2 mm
   • ø2.0/ø2.4 recon: Fix Cyl ID ø2.84±0.1 | OD ø5.6 | Height MIN 2 mm
 - TROCAR HOLES: OD 6.0 mm | ID 5.0 mm | Thru fixation 2.84±0.1 mm | Thru drill 2.3 mm | Counterbore MIN 4.4 mm
-- CONNECTION FEATURES:
-  • Hole & Peg: Radius 1.15 mm | Wall MIN 1.1 mm | Flat width 2.7 mm | Engagement MIN 2.2 mm | Overall ~8.6 mm
-  • Butterfly: Length base ~8.7 mm | Height ~6.7 mm | Pin diameter 2.0 mm | Wall resin 1.9 mm
-  • Hook: Offset 0.27 mm | Height MIN 1.2 mm | Width MIN 1.4 mm / 4.0 mm
 - LE FORT GUIDE: Length 40–95 mm | Width 20–60 mm | Bridge bilateral 4.0–6.0 mm | Depth 15–45 mm | Thickness MIN 0.8 mm
 - BSSO GUIDE: Length 20–70 mm | Width 13–50 mm | Depth 10–30 mm | Thickness MIN 0.8 mm
 - GENIOPLASTY GUIDE: Length 30–100 mm | Width 13–90 mm | Depth 10–30 mm | Thickness MIN 0.8 mm
-- CONDYLE ALIGNMENT: Length 15–65 mm | Width 10–30 mm | Bridge thickness MIN 2.3 mm | Bridge width MIN 2.0 mm | Min temp fix 3 por lado
+- CONDYLE ALIGNMENT: Length 15–65 mm | Width 10–30 mm | Bridge thickness MIN 2.3 mm | Bridge width MIN 2.0 mm
 - RECON GUIDE: Length 15–70 mm | Width 13–50 mm | Depth 10–25 mm | Thickness MIN 0.8 mm
-- FIBULA GUIDE: Length 20–300 mm | Width 10–30 mm | Depth 6–12 mm | Thickness MIN 1.3 mm | Surface offset 0.5 mm | Cut Slot Width 0.3–1.0 mm | Segments 1–7 | Markings PROX & DIST
+- FIBULA GUIDE: Length 20–300 mm | Width 10–30 mm | Depth 6–12 mm | Thickness MIN 1.3 mm | Cut Slot Width 0.3–1.0 mm | Segments 1–7
 - DENTAL ANCHOR GUIDE: Length 30–90 mm | Width 20–60 mm | Depth 5–30 mm | Thickness 2.0 mm | Bridge MIN 3.0 mm
 - TI PALATAL SPLINT: Length 20–70 mm | Width 15–50 mm | Thickness holes MIN 0.8 mm | Thickness palatal MIN 1.2 mm | Wire hole 0.3–1.8 mm
 - LASER MARKING: Required: Batch Number, Reticle, Laterality | Preferred: Patient Initials, Part Number, Single Use | Min 0.04 inches
@@ -127,25 +176,32 @@ INSTRUCCIONES:
 - No inventes especificaciones"""
 
 # ── Header ────────────────────────────────────────────────────────────────────
-st.markdown("## 🔩 ADS Design Spec Assistant")
-st.markdown("**Acumed Digital Surgery · TDS Internal Tool**")
 st.markdown("""
-<div class="doc-tags">
+<div class="header-box">
+  <h2>🔩 ADS Design Spec Assistant</h2>
+  <p>Acumed Digital Surgery · TDS Internal Tool</p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div>
   <span class="doc-tag">PS-015200 · Diagnostic Model</span>
   <span class="doc-tag">PS-015201 · Ti Implant</span>
   <span class="doc-tag">PS-015203 · Resin Guide</span>
   <span class="doc-tag">PS-015204 · Ti Guide</span>
 </div>
 """, unsafe_allow_html=True)
-st.divider()
+
+st.markdown("<br>", unsafe_allow_html=True)
 
 # ── API Key ───────────────────────────────────────────────────────────────────
 api_key = st.text_input(
-    "🔑 Groq API Key (gratuita)",
+    "🔑 Groq API Key (gratuita · console.groq.com)",
     type="password",
     placeholder="gsk_...",
-    help="Obtén tu key gratis en console.groq.com"
 )
+
+st.divider()
 
 # ── Historial ─────────────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
@@ -157,20 +213,20 @@ for msg in st.session_state.messages:
 
 # ── Sugerencias ───────────────────────────────────────────────────────────────
 if not st.session_state.messages:
-    st.markdown("**💡 Preguntas de ejemplo:**")
+    st.markdown("**💡 Preguntas frecuentes:**")
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("¿Grosor mínimo del dental splint?"):
+        if st.button("🦷 Grosor dental splint"):
             st.session_state.suggested = "¿Cuál es el grosor mínimo del dental splint en resina?"
-        if st.button("¿Dimensiones del slot tipo thin?"):
+        if st.button("✂️ Dimensiones slot thin"):
             st.session_state.suggested = "¿Cuáles son las dimensiones del slot tipo thin en Ti guides?"
     with col2:
-        if st.button("¿Drill cylinder para tornillo ø2.0?"):
+        if st.button("🔧 Drill cylinder ø2.0"):
             st.session_state.suggested = "¿Qué dimensiones tiene el drill cylinder para tornillo ø2.0?"
-        if st.button("¿Markings requeridos en Ti implant?"):
+        if st.button("🏷️ Markings Ti implant"):
             st.session_state.suggested = "¿Qué markings son requeridos en un Ti implant?"
 
-# ── Chat input ────────────────────────────────────────────────────────────────
+# ── Chat ──────────────────────────────────────────────────────────────────────
 prompt = st.chat_input("Escribe tu pregunta sobre las specs de diseño...")
 
 if "suggested" in st.session_state:
@@ -179,14 +235,14 @@ if "suggested" in st.session_state:
 
 if prompt:
     if not api_key:
-        st.error("⚠️ Ingresa tu Groq API Key para continuar. Es gratis en console.groq.com")
+        st.warning("⚠️ Ingresa tu Groq API Key para continuar. Es gratis en console.groq.com")
     else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Consultando specs..."):
+            with st.spinner("Consultando especificaciones..."):
                 try:
                     client = Groq(api_key=api_key)
                     response = client.chat.completions.create(
@@ -200,7 +256,8 @@ if prompt:
                     )
                     reply = response.choices[0].message.content
                     st.markdown(reply)
-                    st.markdown('<span class="source">✓ Fuente: PS-015200/01/03/04</span>', unsafe_allow_html=True)
+                    st.markdown('<span class="source">✓ Fuente: PS-015200/01/03/04</span>',
+                                unsafe_allow_html=True)
                     st.session_state.messages.append({"role": "assistant", "content": reply})
                 except Exception as e:
-                    st.error(f"Error: {str(e)}")
+                    st.error(f"Error de conexión: {str(e)}")
